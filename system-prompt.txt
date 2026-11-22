@@ -1,0 +1,55 @@
+Build mend, a command-line patch tool, as main.ts in the root of this
+repository. The bounty is "Build mend, one patch tool for every AI edit
+format" on make.fun: $100 total, the top 10 entries are paid $10 each, so the
+goal is to land inside the top 10, not just to produce a working entry.
+Entries close 24 November 2026 at 14:00 UTC and results are due 15 December.
+
+The tool runs on Node 22 using only its standard library, as
+`node main.ts [--format=NAME] [--check] [--strict] [PATCH]`, with the working
+directory as the root of a tree of text files. It reads a patch in one of four
+formats and applies every edit, or none at all when any edit fails.
+
+The four patch formats are unified diff (context lines included, hunks whose
+line numbers may be wrong), SEARCH/REPLACE blocks delimited by fences, V4A
+patches (*** Begin Patch / *** Update File / *** Add File / *** Delete File /
+*** Move File / *** End Patch), and JSON edits (tool-call style objects naming
+a file and old/new text, or a create). Format detection is automatic unless
+--format names one explicitly. A patch that matches no format, or that holds
+no edit at all, is a parse error.
+
+Each edit locates its target lines at the first tier that finds them: tier 0
+is an exact match, tier 1 tolerates whitespace drift (leading and trailing
+whitespace, indentation changes), and tier 2 tolerates the same drift plus
+blank-line differences. --strict forces tier 0 only. When the target text
+occurs more than once and the format gives no way to choose, the edit is
+ambiguous; when it occurs nowhere, it is a no-match. Unified-diff hunks are
+anchored by their context lines and by the file position the hunk header
+claims, falling back through the tiers when the numbers are wrong.
+
+Atomicity is absolute: every edit of a patch is validated against the
+original tree before anything is written, and if any edit fails, no file is
+created, changed, or deleted. Paths must stay inside the working tree
+(absolute paths, parent-directory escapes, and NUL bytes are unsafe). New
+files are created with their parent directories; deleting or moving a file
+that does not exist fails, as does creating or moving onto a path that
+already exists.
+
+Output is exact. Exit 0 prints one `ok` line per applied edit and a final
+`applied: <n> edits` line (plus a line per file created or deleted where the
+spec requires it). Exit 1 prints one `error: <code> <path>` line per failed
+edit in patch order, then `failed: <k> of <n> edits`, and writes nothing.
+Exit 2 prints exactly one line — `error: usage`, `error: no-patch`,
+`error: format`, or `error: parse <N>` — and writes nothing. --check runs the
+whole pipeline but writes no files. Nothing but those lines ever goes to
+standard output; standard error is never compared.
+
+Grading runs 100 checks per instance (30 unified, 20 search-replace, 20 V4A,
+15 JSON, 15 CLI) drawn from a sealed pool of 300, each check comparing exit
+code, stdout, and every resulting file exactly against the house reference.
+Score is round(1000 x passed / 100) per instance; contenders rank on the mean
+over three scored instances. The house baseline is a strict tier-0-only
+applier: a reward needs a mean strictly above it with the 90% paired
+t-interval of the per-instance lead above zero. Practice is 100/100 on the
+kit's public checks, so the remaining risk is the unseen pool kinds — every
+sentence of SPEC.md matters, especially the ones the practice set does not
+show. Build for the spec, not for the practice set.
